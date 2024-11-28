@@ -16,15 +16,15 @@ class Query(graphene.ObjectType):
         user = info.context.user 
         
         if user.is_anonymous:
-            raise Exception ('Not logged in')
+            raise Exception('Not logged in')
         
-        print (user)
+        print(user)
         
         filter = (
-            Q(posted_by=user) & Q(id = id_skill)
+            Q(posted_by=user) & Q(id=id_skill)
         )
         
-        return Skill.objects.filter(filter).first();
+        return Skill.objects.filter(filter).first()
 
     def resolve_skills(self, info, search=None, **kwargs):
         user = info.context.user
@@ -32,92 +32,74 @@ class Query(graphene.ObjectType):
         if user.is_anonymous:
             raise Exception('Not logged in!')
         
-        print (user)
+        print(user)
         
-        if (search=="*"):
-            filter = (
-                Q(posted_by=user)
-            )
-            
+        if search == "*":
+            filter = Q(posted_by=user)
             return Skill.objects.filter(filter)[:10]
         else:
-            filter = (
-                Q(posted_by=user) & Q(skill__icontains=search)
-            )
-            
+            filter = Q(posted_by=user) & Q(skill__icontains=search)
             return Skill.objects.filter(filter)
 
 class CreateSkill(graphene.Mutation):
-    id_skill  = graphene.Int()
-    skill     = graphene.String()
-    level     = graphene.Int()
+    id_skill = graphene.Int()
+    skill = graphene.String()
+    level = graphene.Int()
     posted_by = graphene.Field(UserType)
 
-    #2
     class Arguments:
-        id_skill  = graphene.Int()
-        skill     = graphene.String()
-        level     = graphene.Int()
+        skill = graphene.String()
+        level = graphene.Int()
 
-    #3
-    def mutate(self, info, id_skill, skill, level):
-        user = info.context.user or None
+    def mutate(self, info, skill, level):
+        user = info.context.user
         
         if user.is_anonymous:
-            raise Exception('Not logged in !');
+            raise Exception('Not logged in!')
         
         print(user)
 
-        currentSkill = Skill.objects.filter(id=id_skill).first()
-        print (currentSkill)
+        skill_instance = Skill(
+            skill=skill,
+            level=level,
+            posted_by=user
+        )
 
-        skill = Skill(
-            skill     = skill,
-            level     = level,
-            posted_by = user
-            )
-
-        if currentSkill:
-            skill.id = currentSkill.id
-
-        skill.save()
+        skill_instance.save()
 
         return CreateSkill(
-            id_skill  = skill.id,
-            skill     = skill.skill,
-            level     = skill.level,
-            posted_by = skill.posted_by
+            id_skill=skill_instance.id,
+            skill=skill_instance.skill,
+            level=skill_instance.level,
+            posted_by=skill_instance.posted_by
         )
 
 class DeleteSkill(graphene.Mutation): 
     id_skill = graphene.Int() 
     
-    #2 
     class Arguments: 
         id_skill = graphene.Int()
     
-    #3
     def mutate(self, info, id_skill): 
-        user = info.context.user or None 
+        user = info.context.user
         
         if user.is_anonymous: 
             raise Exception('Not logged in!')
         
-        print (user) 
+        print(user) 
         
-        currentSkill = Skill.objects.filter(id=id_skill).first()
-        print(currentSkill)
+        current_skill = Skill.objects.filter(id=id_skill, posted_by=user).first()
+        print(current_skill)
         
-        if not currentSkill:
+        if not current_skill:
             raise Exception('Invalid Skill id!')
         
-        currentSkill.delete()
+        current_skill.delete()
         
         return DeleteSkill(
-            id_skill = id_skill,
+            id_skill=id_skill,
         )
 
-#4
 class Mutation(graphene.ObjectType):
     create_skill = CreateSkill.Field()
     delete_skill = DeleteSkill.Field()
