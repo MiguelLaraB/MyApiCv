@@ -10,18 +10,21 @@ class LanguageType(DjangoObjectType):
 
 class Query(graphene.ObjectType):
     languages = graphene.List(LanguageType, search=graphene.String())
-    language_by_id = graphene.Field(LanguageType, id_language=graphene.Int())
+    languageById = graphene.Field(LanguageType, id_language=graphene.Int())
     
-    def resolve_language_by_id(self, info, id_language, **kwargs):
+    def resolve_languageById(self, info, id_language, **kwargs):
         user = info.context.user 
         
         if user.is_anonymous:
-            raise Exception('Not logged in')
+            raise Exception ('Not logged in')
         
-        print(user)
+        print (user)
         
-        filter_query = Q(posted_by=user) & Q(id=id_language)
-        return Language.objects.filter(filter_query).first()
+        filter = (
+            Q(posted_by=user) & Q(id = id_language)
+        )
+        
+        return Language.objects.filter(filter).first();
 
     def resolve_languages(self, info, search=None, **kwargs):
         user = info.context.user
@@ -29,70 +32,88 @@ class Query(graphene.ObjectType):
         if user.is_anonymous:
             raise Exception('Not logged in!')
         
-        print(user)
+        print (user)
         
-        if search == "*":
-            filter_query = Q(posted_by=user)
-            return Language.objects.filter(filter_query)[:10]
+        if (search=="*"):
+            filter = (
+                Q(posted_by=user)
+            )
+            
+            return Language.objects.filter(filter)[:10]
         else:
-            filter_query = Q(posted_by=user) & Q(name__icontains=search)
-            return Language.objects.filter(filter_query)
+            filter = (
+                Q(posted_by=user) & Q(name__icontains=search)
+            )
+            
+            return Language.objects.filter(filter)
 
 class CreateLanguage(graphene.Mutation):
     id_language = graphene.Int()
-    name = graphene.String()
-    posted_by = graphene.Field(UserType)
+    name        = graphene.String()
+    posted_by   = graphene.Field(UserType)
 
+    #2
     class Arguments:
-        name = graphene.String()
+        id_language  = graphene.Int()
+        name         = graphene.String()
 
-    def mutate(self, info, name):
+    #3
+    def mutate(self, info, id_language, name):
         user = info.context.user or None
         
         if user.is_anonymous:
-            raise Exception('Not logged in!')
+            raise Exception('Not logged in !');
         
         print(user)
 
+        currentLanguage = Language.objects.filter(id=id_language).first()
+        print (currentLanguage)
+
         language = Language(
-            name=name,
-            posted_by=user
-        )
+            name      = name,
+            posted_by = user
+            )
+
+        if currentLanguage:
+            language.id = currentLanguage.id
 
         language.save()
 
         return CreateLanguage(
-            id_language=language.id,
-            name=language.name,
-            posted_by=language.posted_by
+            id_language = language.id,
+            name        = language.name,
+            posted_by   = language.posted_by
         )
 
 class DeleteLanguage(graphene.Mutation): 
     id_language = graphene.Int() 
     
+    #2 
     class Arguments: 
         id_language = graphene.Int()
     
+    #3
     def mutate(self, info, id_language): 
-        user = info.context.user
+        user = info.context.user or None 
         
         if user.is_anonymous: 
             raise Exception('Not logged in!')
         
-        print(user)
+        print (user) 
         
-        current_language = Language.objects.filter(id=id_language, posted_by=user).first()
-        print(current_language)
+        currentLanguage = Language.objects.filter(id=id_language).first()
+        print(currentLanguage)
         
-        if not current_language:
+        if not currentLanguage:
             raise Exception('Invalid Language id!')
         
-        current_language.delete()
+        currentLanguage.delete()
         
         return DeleteLanguage(
-            id_language=id_language,
+            id_language = id_language,
         )
 
+#4
 class Mutation(graphene.ObjectType):
     create_language = CreateLanguage.Field()
     delete_language = DeleteLanguage.Field()

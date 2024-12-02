@@ -10,18 +10,21 @@ class InterestType(DjangoObjectType):
 
 class Query(graphene.ObjectType):
     interests = graphene.List(InterestType, search=graphene.String())
-    interest_by_id = graphene.Field(InterestType, id_interest=graphene.Int())
+    interestById = graphene.Field(InterestType, id_interest=graphene.Int())
     
-    def resolve_interest_by_id(self, info, id_interest, **kwargs):
+    def resolve_interestById(self, info, id_interest, **kwargs):
         user = info.context.user 
         
         if user.is_anonymous:
-            raise Exception('Not logged in')
+            raise Exception ('Not logged in')
         
-        print(user)
+        print (user)
         
-        filter_query = Q(posted_by=user) & Q(id=id_interest)
-        return Interest.objects.filter(filter_query).first()
+        filter = (
+            Q(posted_by=user) & Q(id = id_interest)
+        )
+        
+        return Interest.objects.filter(filter).first();
 
     def resolve_interests(self, info, search=None, **kwargs):
         user = info.context.user
@@ -29,70 +32,88 @@ class Query(graphene.ObjectType):
         if user.is_anonymous:
             raise Exception('Not logged in!')
         
-        print(user)
+        print (user)
         
-        if search == "*":
-            filter_query = Q(posted_by=user)
-            return Interest.objects.filter(filter_query)[:10]
+        if (search=="*"):
+            filter = (
+                Q(posted_by=user)
+            )
+            
+            return Interest.objects.filter(filter)[:10]
         else:
-            filter_query = Q(posted_by=user) & Q(name__icontains=search)
-            return Interest.objects.filter(filter_query)
+            filter = (
+                Q(posted_by=user) & Q(name__icontains=search)
+            )
+            
+            return Interest.objects.filter(filter)
 
 class CreateInterest(graphene.Mutation):
     id_interest = graphene.Int()
-    name = graphene.String()
-    posted_by = graphene.Field(UserType)
+    name        = graphene.String()
+    posted_by   = graphene.Field(UserType)
 
+    #2
     class Arguments:
-        name = graphene.String()
+        id_interest = graphene.Int()
+        name        = graphene.String()
 
-    def mutate(self, info, name):
-        user = info.context.user
+    #3
+    def mutate(self, info, id_interest, name):
+        user = info.context.user or None
         
         if user.is_anonymous:
-            raise Exception('Not logged in!')
+            raise Exception('Not logged in !');
         
         print(user)
 
+        currentInterest = Interest.objects.filter(id=id_interest).first()
+        print (currentInterest)
+
         interest = Interest(
-            name=name,
-            posted_by=user
-        )
+            name      = name,
+            posted_by = user
+            )
+
+        if currentInterest:
+            interest.id = currentInterest.id
 
         interest.save()
 
         return CreateInterest(
-            id_interest=interest.id,
-            name=interest.name,
-            posted_by=interest.posted_by
+            id_interest = interest.id,
+            name        = interest.name,
+            posted_by   = interest.posted_by
         )
 
 class DeleteInterest(graphene.Mutation): 
     id_interest = graphene.Int() 
     
+    #2 
     class Arguments: 
         id_interest = graphene.Int()
     
+    #3
     def mutate(self, info, id_interest): 
-        user = info.context.user
+        user = info.context.user or None 
         
         if user.is_anonymous: 
             raise Exception('Not logged in!')
         
-        print(user)
+        print (user) 
         
-        current_interest = Interest.objects.filter(id=id_interest, posted_by=user).first()
-        print(current_interest)
+        currentInterest = Interest.objects.filter(id=id_interest).first()
+        print(currentInterest)
         
-        if not current_interest:
+        if not currentInterest:
             raise Exception('Invalid Interest id!')
         
-        current_interest.delete()
+        currentInterest.delete()
         
         return DeleteInterest(
-            id_interest=id_interest,
+            id_interest = id_interest,
         )
 
+#4
 class Mutation(graphene.ObjectType):
     create_interest = CreateInterest.Field()
     delete_interest = DeleteInterest.Field()
