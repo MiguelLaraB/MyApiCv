@@ -1,165 +1,66 @@
 import graphene
 from graphene_django import DjangoObjectType
 from .models import Header
-from users.schema import UserType
-from django.db.models import Q
+from django.contrib.auth import get_user_model
 
 class HeaderType(DjangoObjectType):
     class Meta:
         model = Header
 
-class Query(graphene.ObjectType):
-    headers = graphene.List(HeaderType, search=graphene.String())
-    headerById = graphene.Field(HeaderType, id_header=graphene.Int())
-    
-    def resolve_headerById(self, info, id_header, **kwargs):
-        user = info.context.user 
-        
-        if user.is_anonymous:
-            raise Exception ('Not logged in')
-        
-        print (user)
-        
-        filter = (
-            Q(posted_by=user) & Q(id = id_header)
-        )
-        
-        return Header.objects.filter(filter).first();
+class CreateOrUpdateHeader(graphene.Mutation):
+    header = graphene.Field(HeaderType)
 
-    def resolve_headers(self, info, search=None, **kwargs):
-        user = info.context.user
-        
-        if user.is_anonymous:
-            raise Exception('Not logged in!')
-        
-        print (user)
-        
-        if (search=="*"):
-            filter = (
-                Q(posted_by=user)
-            )
-            
-            return Header.objects.filter(filter)[:10]
-        else:
-            filter = (
-                Q(posted_by=user) & Q(name__icontains=search)
-            )
-            
-            return Header.objects.filter(filter)
-
-class CreateHeader(graphene.Mutation):
-    id_header    = graphene.Int()
-    name         = graphene.String()
-    description  = graphene.String()
-    image_url    = graphene.String()
-    email        = graphene.String()
-    phone_number = graphene.String()
-    location     = graphene.String()
-    github       = graphene.String()
-    posted_by    = graphene.Field(UserType)
-
-    #2
     class Arguments:
-        name         = graphene.String()
-        description  = graphene.String()
-        image_url    = graphene.String()
-        email        = graphene.String()
-        phone_number = graphene.String()
-        location     = graphene.String()
-        github       = graphene.String()
+        name = graphene.String(required=True)
+        description = graphene.String(required=False)
+        url_image = graphene.String(required=False)
+        email = graphene.String(required=True)
+        telephone = graphene.String(required=False)
+        ubication = graphene.String(required=False)
+        red_social = graphene.String(required=False)
 
-    #3
-    def mutate(self, info, name, description, image_url, email, phone_number, location, github):
+    def mutate(self, info, name, email, description=None, url_image=None, telephone=None, ubication=None, red_social=None):
         user = info.context.user
-        
         if user.is_anonymous:
-            raise Exception('Not logged in!')
-        
-        print(user)
+            raise Exception("Not authenticated!")
 
-        # Verificar si ya existe un Header asociado al usuario
-        currentHeader = Header.objects.filter(posted_by=user).first()
-        
-        if currentHeader:
-            # Actualizar el Header existente
-            currentHeader.name = name
-            currentHeader.description = description
-            currentHeader.image_url = image_url
-            currentHeader.email = email
-            currentHeader.phone_number = phone_number
-            currentHeader.location = location
-            currentHeader.github = github
-            currentHeader.save()
-            
-            return CreateHeader(
-                id_header=currentHeader.id,
-                name=currentHeader.name,
-                description=currentHeader.description,
-                image_url=currentHeader.image_url,
-                email=currentHeader.email,
-                phone_number=currentHeader.phone_number,
-                location=currentHeader.location,
-                github=currentHeader.github,
-                posted_by=currentHeader.posted_by
-            )
-        
-        # Crear un nuevo Header si no existe uno para el usuario
-        header = Header(
-            name=name,
-            description=description,
-            image_url=image_url,
-            email=email,
-            phone_number=phone_number,
-            location=location,
-            github=github,
-            posted_by=user
+        header, created = Header.objects.update_or_create(
+            posted_by=user,
+            defaults={
+                'name': name,
+                'email': email,
+                'description': description,
+                'urlImage': url_image,
+                'telephone': telephone,
+                'ubication': ubication,
+                'redSocial': red_social
+            }
         )
-        header.save()
+        return CreateOrUpdateHeader(header=header)
 
-        return CreateHeader(
-            id_header=header.id,
-            name=header.name,
-            description=header.description,
-            image_url=header.image_url,
-            email=header.email,
-            phone_number=header.phone_number,
-            location=header.location,
-            github=header.github,
-            posted_by=header.posted_by
-        )
+class DeleteHeader(graphene.Mutation):
+    success = graphene.Boolean()
 
+    def mutate(self, info):
+        user = info.context.user
+        if user.is_anonymous:
+            raise Exception("Not authenticated!")
 
-class DeleteHeader(graphene.Mutation): 
-    id_header = graphene.Int() 
-    
-    #2 
-    class Arguments: 
-        id_header = graphene.Int()
-    
-    #3
-    def mutate(self, info, id_header): 
-        user = info.context.user or None 
-        
-        if user.is_anonymous: 
-            raise Exception('Not logged in!')
-        
-        print (user) 
-        
-        currentHeader = Header.objects.filter(id=id_header).first()
-        print(currentHeader)
-        
-        if not currentHeader:
-            raise Exception('Invalid Header id!')
-        
-        currentHeader.delete()
-        
-        return DeleteHeader(
-            id_header = id_header,
-        )
+        try:
+            header = Header.objects.get(posted_by=user)
+            header.delete()
+            return DeleteHeader(success=True)
+        except Header.DoesNotExist:
+            return DeleteHeader(success=False)
 
-#4
+class Query(graphene.ObjectType):
+    headers = graphene.List(HeaderType)
+
+    def resolve_headers(self, info, **kwargs):
+        return Header.objects.all()
+
 class Mutation(graphene.ObjectType):
-    create_header = CreateHeader.Field()
+    create_or_update_header = CreateOrUpdateHeader.Field()
     delete_header = DeleteHeader.Field()
-    
+
 schema = graphene.Schema(query=Query, mutation=Mutation)
